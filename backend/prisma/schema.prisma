@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ANALYST
+  ADMIN
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum AssetType {
+  DOMAIN
+  IP
+  API
+  SERVICE
+}
+
+enum AssetStatus {
+  ACTIVE
+  INACTIVE
+  MONITORING
+  ARCHIVED
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum FindingStatus {
+  OPEN
+  CONFIRMED
+  RESOLVED
+  FALSE_POSITIVE
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  JSON
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(USER)
+  avatar       String?
+  bio          String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships     OrganisationMember[]
+  reports         Report[]
+  fileAttachments FileAttachment[]
+  apiTokens       ApiToken[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Organisation {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  members  OrganisationMember[]
+  assets   Asset[]
+  findings Finding[]
+  reports  Report[]
+  webhooks Webhook[]
+  auditLogs AuditLog[]
+
+  @@map("organisations")
+}
+
+model OrganisationMember {
+  id     String        @id @default(uuid())
+  userId String        @map("user_id")
+  orgId  String        @map("org_id")
+  role   OrgMemberRole @default(MEMBER)
+  joinedAt DateTime    @default(now()) @map("joined_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@map("organisation_members")
+}
+
+model Asset {
+  id          String      @id @default(uuid())
+  orgId       String      @map("org_id")
+  type        AssetType
+  value       String
+  metadata    Json?
+  status      AssetStatus @default(ACTIVE)
+  lastScanned DateTime?   @map("last_scanned")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  findings     Finding[]
+
+  @@map("assets")
+}
+
+model Finding {
+  id          String        @id @default(uuid())
+  assetId     String        @map("asset_id")
+  orgId       String        @map("org_id")
+  title       String
+  description String
+  severity    Severity
+  confidence  Float         @default(0.8)
+  status      FindingStatus @default(OPEN)
+  rawData     Json?         @map("raw_data")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  asset        Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  organisation Organisation   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  attachments  FileAttachment[]
+
+  @@map("findings")
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  orgId       String       @map("org_id")
+  title       String
+  format      ReportFormat @default(PDF)
+  filters     Json?
+  generatedBy String       @map("generated_by")
+  filePath    String?      @map("file_path")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [generatedBy], references: [id])
+
+  @@map("reports")
+}
+
+model Webhook {
+  id        String   @id @default(uuid())
+  orgId     String   @map("org_id")
+  url       String
+  secret    String
+  events    String[]
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organisation Organisation  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  webhookEvents WebhookEvent[]
+
+  @@map("webhooks")
+}
+
+model WebhookEvent {
+  id         String   @id @default(uuid())
+  webhookId  String   @map("webhook_id")
+  event      String
+  payload    Json
+  statusCode Int?     @map("status_code")
+  response   String?
+  deliveredAt DateTime? @map("delivered_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_events")
+}
+
+model FileAttachment {
+  id           String   @id @default(uuid())
+  findingId    String   @map("finding_id")
+  filename     String
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  size         Int
+  uploadedBy   String   @map("uploaded_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [uploadedBy], references: [id])
+
+  @@map("file_attachments")
+}
+
+model ApiToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  name      String
+  tokenHash String    @map("token_hash")
+  lastUsed  DateTime? @map("last_used")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_tokens")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  orgId     String?  @map("org_id")
+  action    String
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organisation Organisation? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}

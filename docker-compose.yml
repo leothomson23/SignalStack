@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: signalstack-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: signalstack
+      POSTGRES_USER: signalstack
+      POSTGRES_PASSWORD: signalstack2024
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - signalstack-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signalstack -d signalstack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: signalstack-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - signalstack-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: signalstack-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://signalstack:signalstack2024@postgres:5432/signalstack
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: signalstack-jwt-2024-prod
+      NODE_ENV: development
+      CORS_ORIGINS: "http://localhost:3000,https://localhost:8443,http://localhost:8080,https://signalstack.io,https://app.signalstack.io"
+      PORT: "4000"
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - signalstack-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: signalstack-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_PUBLIC_APP_NAME: SignalStack
+    networks:
+      - signalstack-net
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: signalstack-nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - signalstack-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads:
+
+networks:
+  signalstack-net:
+    driver: bridge
