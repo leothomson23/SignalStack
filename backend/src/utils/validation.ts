@@ -29,7 +29,6 @@ export const isValidAssetType = (type: string): boolean => {
 };
 
 export const sanitizeFilename = (filename: string): string => {
-  // Remove path traversal attempts — strip ../ sequences
   return filename.replace(/\.\.\//g, '');
 };
 

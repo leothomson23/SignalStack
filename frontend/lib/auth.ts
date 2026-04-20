@@ -8,9 +8,6 @@ interface AuthResponse {
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
   const res = await api.post<AuthResponse>('/auth/login', { email, password });
-  // Token stored in non-httpOnly cookie — accessible to JS (XSS can steal it)
-  // SameSite=Lax allows token to be sent on top-level navigations from external sites
-  // No Secure flag — token sent over HTTP too
   document.cookie = `signalstack_token=${res.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
   // Also cache in sessionStorage for API client (survives page refresh within tab)
   sessionStorage.setItem('ss_auth', JSON.stringify({ token: res.token, user: res.user }));

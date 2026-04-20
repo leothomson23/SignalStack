@@ -220,7 +220,6 @@ router.get('/:id/download', async (req: Request, res: Response, next: NextFuncti
     // Handle custom template parameter
     let templateName = req.query.template as string || 'default';
 
-    // Sanitize template name — remove path traversal sequences
     templateName = templateName.replace(/\.\.\//g, '');
 
     const templateDir = path.join(__dirname, '..', '..', 'templates', 'reports');

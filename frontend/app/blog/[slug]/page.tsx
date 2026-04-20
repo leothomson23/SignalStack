@@ -615,7 +615,6 @@ Content-Security-Policy: frame-ancestors 'self';`}</code></pre>
   const cnameChain = await resolveCNAMEChain(subdomain);
   const terminal = cnameChain[cnameChain.length - 1];
 
-  // Match against known vulnerable service patterns
   const service = fingerprints.find(fp =>
     fp.cnamePatterns.some(pattern => terminal.matches(pattern))
   );
