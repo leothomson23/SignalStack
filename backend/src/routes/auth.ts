@@ -132,13 +132,38 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase().trim(),
-        name: name.trim(),
-        passwordHash,
-      },
+    // Create user, a default organisation and the OWNER membership in one
+    // transaction so the dashboard always has an orgId to query against on
+    // first login.
+    const slugBase = (name.trim() || email.split('@')[0])
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'workspace';
+    const slug = `${slugBase}-${Date.now().toString(36)}`;
+
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: email.toLowerCase().trim(),
+          name: name.trim(),
+          passwordHash,
+        },
+      });
+      const org = await tx.organisation.create({
+        data: {
+          name: `${name.trim()}'s workspace`,
+          slug,
+        },
+      });
+      await tx.organisationMember.create({
+        data: {
+          userId: newUser.id,
+          orgId: org.id,
+          role: 'OWNER',
+        },
+      });
+      return newUser;
     });
 
     // Generate JWT
