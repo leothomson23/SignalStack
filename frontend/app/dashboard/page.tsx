@@ -11,16 +11,16 @@ import StatsCard from '@/components/StatsCard';
 import Badge from '@/components/Badge';
 
 export default function DashboardPage() {
-  const { orgId } = useUser();
+  const { orgId, loading: userLoading } = useUser();
   const [stats, setStats] = useState<FindingsStats | null>(null);
   const [totalAssets, setTotalAssets] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
     if (!orgId) return;
 
     async function fetchData() {
-      setLoading(true);
+      setDataLoading(true);
       try {
         const [statsRes, assetsRes] = await Promise.allSettled([
           api.get<FindingsStats>('/findings/stats', { orgId: orgId! }),
@@ -40,12 +40,17 @@ export default function DashboardPage() {
       } catch {
         // fallback values already set
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     }
 
     fetchData();
   }, [orgId]);
+
+  // Show skeletons only while user info is actually being loaded or a live
+  // fetch is in flight. Once user load is done and we still have no orgId,
+  // fall through to empty state rather than spinning forever.
+  const loading = userLoading || dataLoading;
 
   const openCount =
     stats?.byStatus?.find((s) => s.status === 'OPEN')?.count ?? 0;

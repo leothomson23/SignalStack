@@ -28,11 +28,12 @@ interface FindingsResponse {
 }
 
 export default function FindingsPage() {
-  const { orgId } = useUser();
+  const { orgId, loading: userLoading } = useUser();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const loading = userLoading || dataLoading;
   const [severityFilter, setSeverityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -51,7 +52,7 @@ export default function FindingsPage() {
 
   const fetchFindings = useCallback(async () => {
     if (!orgId) return;
-    setLoading(true);
+    setDataLoading(true);
     try {
       const params: Record<string, string> = {
         orgId,
@@ -68,7 +69,7 @@ export default function FindingsPage() {
     } catch {
       setFindings([]);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   }, [orgId, page, severityFilter, statusFilter, search]);
 
